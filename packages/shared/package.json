@@ -1,0 +1,12 @@
+{
+  "name": "@wildfire/shared",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist",
+    "dev": "bun --watch src/index.ts",
+    "lint": "biome check src",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  }
+}
