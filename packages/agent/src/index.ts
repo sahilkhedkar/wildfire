@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import type { ChatMessage, LLMProvider, TokenUsage } from "@wildfire/llm";
+import type { TraceEventType } from "@wildfire/trace";
 import { z } from "zod";
 
 const toolCallSchema = z.object({
@@ -28,7 +29,15 @@ export interface AgentConfig {
   workspaceRoot: string;
   maxSteps?: number;
   tokenBudget?: number;
+  onEvent?: AgentEventHandler;
 }
+
+export interface AgentEvent {
+  type: TraceEventType;
+  payload: Record<string, unknown>;
+}
+
+export type AgentEventHandler = (event: AgentEvent) => void | Promise<void>;
 
 export interface AgentResult {
   status: "completed" | "step_limit" | "token_budget_exceeded";
@@ -60,6 +69,11 @@ export async function runAgent(config: AgentConfig): Promise<AgentResult> {
   let usage = emptyUsage();
 
   while (steps < maxSteps) {
+    await emitEvent(config.onEvent, "llm.request", {
+      step: steps + 1,
+      model: config.model,
+      messageCount: messages.length,
+    });
     const response = await config.provider.complete({
       model: config.model,
       messages,
@@ -67,32 +81,53 @@ export async function runAgent(config: AgentConfig): Promise<AgentResult> {
     steps += 1;
     usage = addUsage(usage, response.usage);
     messages.push({ role: "assistant", content: response.content });
+    await emitEvent(config.onEvent, "llm.response", {
+      step: steps,
+      content: response.content,
+      usage: response.usage,
+    });
 
     if (usage.totalTokens > tokenBudget) {
-      return { status: "token_budget_exceeded", steps, usage };
+      const result = { status: "token_budget_exceeded" as const, steps, usage };
+      await emitEvent(config.onEvent, "run.finished", result);
+      return result;
     }
 
     const toolCall = parseToolCall(response.content);
     if (!toolCall) {
-      return {
+      const result = {
         status: "completed",
         finalResponse: response.content,
         steps,
         usage,
-      };
+      } as const;
+      await emitEvent(config.onEvent, "run.finished", result);
+      return result;
     }
 
     const tool = tools[toolCall.tool];
+    await emitEvent(config.onEvent, "tool.call", {
+      step: steps,
+      tool: toolCall.tool,
+      arguments: toolCall.arguments,
+    });
     const result = tool
       ? await executeTool(tool, toolCall.arguments)
       : JSON.stringify({ error: `Unknown tool: ${toolCall.tool}` });
+    await emitEvent(config.onEvent, "tool.result", {
+      step: steps,
+      tool: toolCall.tool,
+      result,
+    });
     messages.push({
       role: "user",
       content: `Tool result (${toolCall.tool}): ${result}`,
     });
   }
 
-  return { status: "step_limit", steps, usage };
+  const result = { status: "step_limit" as const, steps, usage };
+  await emitEvent(config.onEvent, "run.finished", result);
+  return result;
 }
 
 export function parseToolCall(
@@ -195,4 +230,12 @@ function addUsage(left: TokenUsage, right: TokenUsage): TokenUsage {
     completionTokens: left.completionTokens + right.completionTokens,
     totalTokens: left.totalTokens + right.totalTokens,
   };
+}
+
+async function emitEvent(
+  handler: AgentEventHandler | undefined,
+  type: TraceEventType,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  await handler?.({ type, payload });
 }
