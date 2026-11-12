@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@wildfire/llm": "workspace:*",
+    "@wildfire/pathguard": "workspace:*",
     "@wildfire/trace": "workspace:*",
     "zod": "^4.6.7"
   }
