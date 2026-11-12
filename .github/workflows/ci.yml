@@ -19,4 +19,5 @@ jobs:
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
       - run: bun install --frozen-lockfile
+      - run: bun run verify:toolchain
       - run: bun run turbo run build typecheck lint test
