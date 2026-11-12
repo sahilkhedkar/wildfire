@@ -7,6 +7,6 @@
     "dev": "bun --watch src/index.ts",
     "lint": "biome check src",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "bunx tsc --noEmit"
   }
 }
