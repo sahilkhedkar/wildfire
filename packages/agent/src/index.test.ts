@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ChatRequest, ChatResponse, LLMProvider } from "@wildfire/llm";
+import type { PathGuard } from "@wildfire/pathguard";
 import { createWorkspaceTools, parseToolCall, runAgent } from "./index";
 
 class ScriptedProvider implements LLMProvider {
@@ -89,14 +90,33 @@ test("stops before executing a tool when the token budget is exceeded", async ()
 test("reads files and lists workspace entries", async () => {
   const workspaceRoot = await mkdtemp(join(tmpdir(), "wildfire-agent-"));
   await writeFile(join(workspaceRoot, "existing.txt"), "contents", "utf8");
-  const tools = await createWorkspaceTools(workspaceRoot);
+  const calls: Array<{ path: string; operation: string }> = [];
+  const pathGuard: PathGuard = {
+    check: (path, operation) => {
+      calls.push({ path, operation });
+      return {
+        kind: "allowed",
+        operation,
+        resolvedPath: resolve(workspaceRoot, path),
+      };
+    },
+  };
+  const tools = await createWorkspaceTools(workspaceRoot, pathGuard);
 
+  await expect(
+    tools.write_file.execute({ path: "created.txt", content: "created" }),
+  ).resolves.toContain('"written":"created.txt"');
   await expect(tools.read_file.execute({ path: "existing.txt" })).resolves.toBe(
     "contents",
   );
   await expect(tools.list_dir.execute({ path: "." })).resolves.toContain(
     "existing.txt",
   );
+  expect(calls.map((call) => call.operation)).toEqual([
+    "write",
+    "read",
+    "list",
+  ]);
 });
 
 test("rejects paths outside the workspace through the write tool", async () => {
