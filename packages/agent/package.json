@@ -2,6 +2,9 @@
   "name": "@wildfire/agent",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "build": "bun build src/index.ts --outdir dist",
     "dev": "bun --watch src/index.ts",
@@ -11,6 +14,7 @@
   },
   "dependencies": {
     "@wildfire/llm": "workspace:*",
+    "@wildfire/trace": "workspace:*",
     "zod": "^4.6.7"
   }
 }

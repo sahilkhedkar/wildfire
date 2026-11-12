@@ -15,6 +15,11 @@
     },
     "apps/cli": {
       "name": "@wildfire/cli",
+      "dependencies": {
+        "@wildfire/agent": "workspace:*",
+        "@wildfire/llm": "workspace:*",
+        "@wildfire/trace": "workspace:*",
+      },
     },
     "apps/web": {
       "name": "@wildfire/web",
@@ -29,6 +34,7 @@
       "name": "@wildfire/agent",
       "dependencies": {
         "@wildfire/llm": "workspace:*",
+        "@wildfire/trace": "workspace:*",
         "zod": "^4.6.7",
       },
     },
@@ -55,6 +61,9 @@
     },
     "packages/trace": {
       "name": "@wildfire/trace",
+      "dependencies": {
+        "zod": "^4.6.7",
+      },
     },
   },
   "packages": {
