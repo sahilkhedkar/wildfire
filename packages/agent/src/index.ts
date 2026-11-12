@@ -1,6 +1,11 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import type { ChatMessage, LLMProvider, TokenUsage } from "@wildfire/llm";
+import {
+  type PathGuard,
+  type PathOperation,
+  TypeScriptPathGuard,
+} from "@wildfire/pathguard";
 import type { TraceEventType } from "@wildfire/trace";
 import { z } from "zod";
 
@@ -144,6 +149,7 @@ export function parseToolCall(
 
 export async function createWorkspaceTools(
   workspaceRoot: string,
+  pathGuard: PathGuard = new TypeScriptPathGuard(workspaceRoot),
 ): Promise<Record<string, AgentTool>> {
   const root = resolve(workspaceRoot);
   await mkdir(root, { recursive: true });
@@ -152,14 +158,14 @@ export async function createWorkspaceTools(
     read_file: {
       execute: async (argumentsValue) => {
         const { path } = readFileArgumentsSchema.parse(argumentsValue);
-        return readFile(await resolveWorkspacePath(root, path), "utf8");
+        return readFile(await guardedPath(pathGuard, path, "read"), "utf8");
       },
     },
     write_file: {
       execute: async (argumentsValue) => {
         const { path, content } =
           writeFileArgumentsSchema.parse(argumentsValue);
-        const resolvedPath = await resolveWorkspacePath(root, path);
+        const resolvedPath = await guardedPath(pathGuard, path, "write");
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
         return JSON.stringify({
@@ -171,7 +177,7 @@ export async function createWorkspaceTools(
     list_dir: {
       execute: async (argumentsValue) => {
         const { path } = listDirArgumentsSchema.parse(argumentsValue);
-        const resolvedPath = await resolveWorkspacePath(root, path ?? ".");
+        const resolvedPath = await guardedPath(pathGuard, path ?? ".", "list");
         const entries = await readdir(resolvedPath, { withFileTypes: true });
         return JSON.stringify(
           entries
@@ -196,20 +202,16 @@ async function executeTool(
   }
 }
 
-async function resolveWorkspacePath(
-  root: string,
+async function guardedPath(
+  pathGuard: PathGuard,
   requestedPath: string,
+  operation: PathOperation,
 ): Promise<string> {
-  const resolvedPath = resolve(root, requestedPath);
-  const relativePath = relative(root, resolvedPath);
-  if (
-    relativePath === ".." ||
-    relativePath.startsWith(`..${sep}`) ||
-    relativePath.includes(`${sep}..${sep}`)
-  ) {
-    throw new Error("Path is outside the workspace");
+  const decision = pathGuard.check(requestedPath, operation);
+  if (decision.kind === "denied") {
+    throw new Error(decision.reason);
   }
-  return resolvedPath;
+  return decision.resolvedPath;
 }
 
 function safeJsonParse(value: string): unknown {
