@@ -11,5 +11,8 @@
     "lint": "biome check src",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
   }
 }
