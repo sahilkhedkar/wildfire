@@ -12,7 +12,8 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "verify:toolchain": "tsc --version"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.7",
