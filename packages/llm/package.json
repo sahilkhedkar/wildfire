@@ -5,8 +5,12 @@
   "scripts": {
     "build": "bun build src/index.ts --outdir dist",
     "dev": "bun --watch src/index.ts",
+    "prompt": "bun run src/demo.ts",
     "lint": "biome check src",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }
