@@ -27,6 +27,10 @@
     },
     "packages/agent": {
       "name": "@wildfire/agent",
+      "dependencies": {
+        "@wildfire/llm": "workspace:*",
+        "zod": "^4.6.7",
+      },
     },
     "packages/db": {
       "name": "@wildfire/db",

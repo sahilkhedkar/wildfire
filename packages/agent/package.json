@@ -8,5 +8,9 @@
     "lint": "biome check src",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wildfire/llm": "workspace:*",
+    "zod": "^4.6.7"
   }
 }
