@@ -149,3 +149,45 @@ test("rejects paths outside the workspace through the write tool", async () => {
   expect(result.status).toBe("completed");
   expect(parseToolCall("not JSON")).toBeNull();
 });
+
+test("runs file tools through a remote sandbox transport", async () => {
+  const calls: string[] = [];
+  const provider = new ScriptedProvider(
+    {
+      id: "chat-remote-1",
+      model: "test-model",
+      content: JSON.stringify({
+        tool: "write_file",
+        arguments: {
+          path: "remote.ts",
+          content: "export const remote = true;\n",
+        },
+      }),
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    },
+    {
+      id: "chat-remote-2",
+      model: "test-model",
+      content: "Created remotely.",
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    },
+  );
+
+  const result = await runAgent({
+    provider,
+    model: "test-model",
+    task: "Create remote.ts",
+    workspaceRoot: "/workspace-is-not-used",
+    toolTransport: {
+      async call<T>(method: string, params: unknown): Promise<T> {
+        calls.push(`${method}:${JSON.stringify(params)}`);
+        return JSON.stringify({ written: "remote.ts", bytes: 29 }) as T;
+      },
+    },
+  });
+
+  expect(result.status).toBe("completed");
+  expect(calls).toEqual([
+    'write_file:{"path":"remote.ts","content":"export const remote = true;\\n"}',
+  ]);
+});
