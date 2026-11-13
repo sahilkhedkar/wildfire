@@ -60,6 +60,9 @@
     },
     "packages/sandboxd": {
       "name": "@wildfire/sandboxd",
+      "dependencies": {
+        "zod": "^4.6.7",
+      },
     },
     "packages/shared": {
       "name": "@wildfire/shared",
