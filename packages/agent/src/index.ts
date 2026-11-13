@@ -35,6 +35,7 @@ export interface AgentConfig {
   maxSteps?: number;
   tokenBudget?: number;
   onEvent?: AgentEventHandler;
+  toolTransport?: AgentToolTransport;
 }
 
 export interface AgentEvent {
@@ -51,8 +52,12 @@ export interface AgentResult {
   usage: TokenUsage;
 }
 
-interface AgentTool {
+export interface AgentTool {
   execute(argumentsValue: unknown): Promise<string>;
+}
+
+export interface AgentToolTransport {
+  call<T>(method: string, params: unknown): Promise<T>;
 }
 
 const systemPrompt = [
@@ -65,7 +70,9 @@ const systemPrompt = [
 export async function runAgent(config: AgentConfig): Promise<AgentResult> {
   const maxSteps = config.maxSteps ?? 8;
   const tokenBudget = config.tokenBudget ?? 8_000;
-  const tools = await createWorkspaceTools(config.workspaceRoot);
+  const tools = config.toolTransport
+    ? createRemoteWorkspaceTools(config.toolTransport)
+    : await createWorkspaceTools(config.workspaceRoot);
   const messages: ChatMessage[] = [
     { role: "system", content: systemPrompt },
     { role: "user", content: config.task },
@@ -189,6 +196,40 @@ export async function createWorkspaceTools(
   };
 }
 
+export function createRemoteWorkspaceTools(
+  transport: AgentToolTransport,
+): Record<string, AgentTool> {
+  return {
+    read_file: {
+      execute: async (argumentsValue) =>
+        requireStringResult(
+          await transport.call(
+            "read_file",
+            readFileArgumentsSchema.parse(argumentsValue),
+          ),
+        ),
+    },
+    write_file: {
+      execute: async (argumentsValue) =>
+        requireStringResult(
+          await transport.call(
+            "write_file",
+            writeFileArgumentsSchema.parse(argumentsValue),
+          ),
+        ),
+    },
+    list_dir: {
+      execute: async (argumentsValue) =>
+        requireStringResult(
+          await transport.call(
+            "list_dir",
+            listDirArgumentsSchema.parse(argumentsValue),
+          ),
+        ),
+    },
+  };
+}
+
 async function executeTool(
   tool: AgentTool,
   argumentsValue: unknown,
@@ -200,6 +241,13 @@ async function executeTool(
       error: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+function requireStringResult(result: unknown): string {
+  if (typeof result !== "string") {
+    throw new Error("Remote tool returned a non-string result");
+  }
+  return result;
 }
 
 async function guardedPath(
