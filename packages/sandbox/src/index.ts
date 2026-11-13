@@ -1,3 +1,12 @@
+import {
+  DEFAULT_SANDBOX_LIMITS,
+  type SandboxLimits,
+  validateLimits,
+} from "./limits";
+
+export type { SandboxLimits } from "./limits";
+export { DEFAULT_SANDBOX_LIMITS } from "./limits";
+
 export interface DockerRequestInit extends RequestInit {
   unix?: string;
 }
@@ -18,11 +27,14 @@ export interface SandboxSpec {
   name?: string;
   workspaceVolume?: string;
   command?: string[];
+  runtime?: "runc" | "runsc";
+  limits?: SandboxLimits;
 }
 
 export interface SandboxHandle {
   id: string;
   name?: string;
+  deadlineAt: number;
 }
 
 interface CreateContainerResponse {
@@ -52,6 +64,8 @@ export class DockerClient {
   }
 
   async createContainer(spec: SandboxSpec): Promise<SandboxHandle> {
+    const limits = spec.limits ?? DEFAULT_SANDBOX_LIMITS;
+    validateLimits(limits);
     const response = await this.requestJson<CreateContainerResponse>(
       "POST",
       "/containers/create",
@@ -65,6 +79,12 @@ export class DockerClient {
             ? [`${spec.workspaceVolume}:/workspace:rw`]
             : [],
           CapDrop: ["ALL"],
+          NanoCpus: limits.nanoCpus,
+          Memory: limits.memoryBytes,
+          MemorySwap: limits.memorySwapBytes,
+          PidsLimit: limits.pidsLimit,
+          StorageOpt: { size: `${limits.diskQuotaBytes}b` },
+          Runtime: spec.runtime ?? "runc",
           NetworkMode: "none",
           ReadonlyRootfs: true,
           SecurityOpt: ["no-new-privileges:true"],
@@ -73,7 +93,11 @@ export class DockerClient {
       spec.name,
     );
 
-    return { id: response.Id, name: spec.name };
+    return {
+      id: response.Id,
+      name: spec.name,
+      deadlineAt: Date.now() + limits.maxRuntimeMs,
+    };
   }
 
   async startContainer(id: string): Promise<void> {
