@@ -28,7 +28,9 @@ test("creates, starts, stops, and removes a container over the Docker API", asyn
   await client.stopContainer(handle.id, 3);
   await client.removeContainer(handle.id, true);
 
-  expect(handle).toEqual({ id: "container-1", name: "wildfire-test" });
+  expect(handle.id).toBe("container-1");
+  expect(handle.name).toBe("wildfire-test");
+  expect(handle.deadlineAt).toBeGreaterThan(Date.now());
   expect(calls.map((call) => `${call.init.method} ${call.url}`)).toEqual([
     "POST http://localhost/v1.45/containers/create?name=wildfire-test",
     "POST http://localhost/v1.45/containers/container-1/start",
